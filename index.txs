@@ -1,70 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GeeClock - AI Timer App</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              mono: ['Roboto Mono', 'monospace'],
-            },
-            colors: {
-              'primary': 'rgb(var(--color-primary) / <alpha-value>)',
-              'secondary': 'rgb(var(--color-secondary) / <alpha-value>)',
-              'background': 'rgb(var(--color-background) / <alpha-value>)',
-              'surface': 'rgb(var(--color-surface) / <alpha-value>)',
-              'text-primary': 'rgb(var(--color-text-primary) / <alpha-value>)',
-              'text-secondary': 'rgb(var(--color-text-secondary) / <alpha-value>)',
-            },
-            keyframes: {
-              'fade-in': {
-                '0%': { opacity: '0', transform: 'translateY(10px) scale(0.98)' },
-                '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
-              },
-               'slide-in': {
-                '0%': { transform: 'translateY(100%)' },
-                '100%': { transform: 'translateY(0)' },
-              },
-              'pulse-red': {
-                '0%, 100%': { backgroundColor: 'rgb(var(--color-surface) / 1)' },
-                '50%': { backgroundColor: 'rgb(239 68 68 / 0.2)' },
-              }
-            },
-            animation: {
-              'fade-in': 'fade-in 0.3s ease-out forwards',
-              'slide-in': 'slide-in 0.3s ease-out forwards',
-              'pulse-red': 'pulse-red 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-            }
-          }
-        }
-      }
-    </script>
-    <!-- Babel for in-browser JSX/TSX transpilation -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script type="importmap">
-      {
-        "imports": {
-          "react": "https://aistudiocdn.com/react@^19.2.0",
-          "react/": "https://aistudiocdn.com/react@^19.2.0/",
-          "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-          "@google/genai": "https://aistudiocdn.com/@google/genai@^1.26.0"
-        }
-      }
-    </script>
-</head>
-  <body class="bg-background text-text-primary font-sans transition-colors duration-300">
-    <div id="root"></div>
-    <script type="text/babel" data-type="module">
+
+
+
 import React, { useState, useEffect, useRef, useCallback, Fragment, memo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
@@ -144,6 +80,7 @@ const INITIAL_MUSIC_STATE: MusicState = {
 };
 
 // --- ICONS ---
+// FIX: Add props type to the Icon component to resolve TypeScript errors.
 const Icon = memo(({ name, className }: IconProps) => {
   const icons = {
       clock: <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />,
@@ -163,10 +100,12 @@ const Icon = memo(({ name, className }: IconProps) => {
 });
 
 // --- UTILS ---
-const parseICal = (data) => {
+// FIX: The `data` parameter should be explicitly typed as a string.
+const parseICal = (data: string) => {
     const events = [];
     const eventBlocks = data.match(/BEGIN:VEVENT([\s\S]*?)END:VEVENT/g);
     if (!eventBlocks) return [];
+    // FIX: Add type annotation for the dateStr parameter.
     const parseDate = (dateStr: string | undefined) => {
         if (!dateStr) return null;
         const year = parseInt(dateStr.substring(0, 4), 10);
@@ -202,6 +141,7 @@ const formatTime = (seconds) => {
 };
 
 // --- HOOKS ---
+// FIX: Add generic types to the useLocalStorage hook for type safety.
 const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] => {
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
@@ -219,6 +159,7 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, (value: T | ((va
   return [storedValue, setValue];
 };
 
+// FIX: Add types for callback and delay parameters in the useInterval hook.
 const useInterval = (callback: () => void, delay: number | null) => {
   const savedCallback = useRef<() => void>();
   useEffect(() => { savedCallback.current = callback; }, [callback]);
@@ -232,6 +173,7 @@ const useInterval = (callback: () => void, delay: number | null) => {
 };
 
 // --- COMPONENTS ---
+// FIX: Add props type to the ApiKeyGate component.
 const ApiKeyGate = memo(({ onSelectKey, onSaveKey, isAistudioAvailable }: ApiKeyGateProps) => {
     const [manualApiKey, setManualApiKey] = useState('');
 
@@ -312,6 +254,7 @@ const HeaderClock = () => {
   );
 };
 
+// FIX: Add props type to the Header component.
 const Header = memo(({ onSettingsClick, onChatClick, hasApiKey }: HeaderProps) => (
     <header className="flex justify-between items-center p-4 md:p-6 animate-fade-in">
       <h1 className="text-2xl font-bold tracking-tighter text-text-primary">GeeClock</h1>
@@ -343,6 +286,7 @@ const Clock = () => {
   );
 };
 
+// FIX: Add props type to the MusicPlayerCard component.
 const MusicPlayerCard = memo(({ timer, onDelete, onUpdate }: MusicPlayerCardProps) => {
   const musicState = timer.musicState || INITIAL_MUSIC_STATE;
   const setMusicState = (newState) => onUpdate(timer.id, { musicState: { ...musicState, ...newState } });
@@ -418,9 +362,11 @@ const MusicPlayerCard = memo(({ timer, onDelete, onUpdate }: MusicPlayerCardProp
   );
 });
 
+// FIX: Add props type to the Timer component.
 const Timer = memo(({ timer, onDelete, onToggle, onReset, onUpdate, alarmSoundUrl, compact = false }: TimerProps) => {
     const { remaining } = timer;
     const [isFinished, setIsFinished] = useState(remaining <= 0);
+    // FIX: Provide a specific type for the audio ref and initialize it with null.
     const audioRef = useRef<HTMLAudioElement>(null);
     const isMusicPlayer = timer.initialDuration >= 86400;
 
@@ -490,6 +436,7 @@ const Timer = memo(({ timer, onDelete, onToggle, onReset, onUpdate, alarmSoundUr
     );
 });
 
+// FIX: Add props type to the TimerList component.
 const TimerList = memo(({ timers, onAdd, onDelete, onToggle, onReset, onUpdate, alarmSoundUrl }: TimerListProps) => {
     return (
         <div className="p-4 md:p-6 space-y-4 animate-fade-in">
@@ -514,6 +461,7 @@ const TimerList = memo(({ timers, onAdd, onDelete, onToggle, onReset, onUpdate, 
     );
 });
 
+// FIX: Add props type to the Modal component.
 const Modal = memo(({ isOpen, onClose, title, children }: ModalProps) => {
   if (!isOpen) return null;
   return (
@@ -529,6 +477,7 @@ const Modal = memo(({ isOpen, onClose, title, children }: ModalProps) => {
   );
 });
 
+// FIX: Add props type to the AddTimerModal component.
 const AddTimerModal = memo(({ isOpen, onClose, onAddTimer }: AddTimerModalProps) => {
     const [label, setLabel] = useLocalStorage<string>('addTimer-label', '');
     const [hours, setHours] = useLocalStorage<number>('addTimer-hours', 0);
@@ -570,8 +519,10 @@ const AddTimerModal = memo(({ isOpen, onClose, onAddTimer }: AddTimerModalProps)
     );
 });
 
+// FIX: Add props type to the SettingsModal component.
 const SettingsModal = memo(({ isOpen, onClose, settings, onSettingsChange }: SettingsModalProps) => {
     const [icalUrl, setIcalUrl] = useState(settings.iCalUrl || '');
+    // FIX: Provide a specific type for the audio ref and initialize it with null.
     const audioRef = useRef<HTMLAudioElement>(null);
     const handleSave = () => { onSettingsChange({ ...settings, iCalUrl: icalUrl }); onClose(); };
     const testSound = () => { if (audioRef.current) audioRef.current.play().catch(e => alert("Audio playback failed. Please interact with the page first.")); };
@@ -608,6 +559,7 @@ const SettingsModal = memo(({ isOpen, onClose, settings, onSettingsChange }: Set
     );
 });
 
+// FIX: Add props type to the ChatBot component.
 const ChatBot = memo(({ isOpen, onClose, timers, onDeleteTimer, onToggleTimer, onResetTimer, alarmSoundUrl, onUpdateTimer, onApiKeyInvalid, apiKey }: ChatBotProps) => {
     const [messages, setMessages] = useLocalStorage<Message[]>('chat-messages', []);
     const [input, setInput] = useLocalStorage<string>('chat-input', '');
@@ -632,7 +584,9 @@ const ChatBot = memo(({ isOpen, onClose, timers, onDeleteTimer, onToggleTimer, o
                 parts: [{ text: msg.text }]
             }));
             const response: GenerateContentResponse = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: history });
-            setMessages([...newMessages, { role: 'model', text: response.text }]);
+            // FIX: Access the response text directly via the `text` property as per the SDK guidelines.
+            // Using `|| ''` to ensure a string is always passed, satisfying the type checker if `response.text` is inferred as potentially non-string.
+            setMessages([...newMessages, { role: 'model', text: response.text || '' }]);
         } catch (error) { 
             console.error(error); 
             if (error instanceof Error && (error.message.includes("API key not valid") || error.message.includes("Requested entity was not found."))) {
@@ -666,6 +620,7 @@ const ChatBot = memo(({ isOpen, onClose, timers, onDeleteTimer, onToggleTimer, o
     );
 });
 
+// FIX: Add props type to the NavButton component.
 const NavButton = memo(({ tabName, icon, children, activeTab, onTabClick }: NavButtonProps) => (
     <button onClick={() => onTabClick(tabName)} className={`flex-1 p-3 text-sm font-semibold flex items-center justify-center gap-2 transition-all rounded-t-lg ${activeTab === tabName ? 'bg-surface text-primary' : 'text-text-secondary hover:bg-surface/50'}`}><Icon name={icon} className="w-5 h-5" />{children}</button>
 ));
@@ -690,6 +645,7 @@ const App = () => {
   }, [settings.theme, settings.darkMode]);
   
   const checkApiKey = useCallback(async () => {
+    // FIX: Ensure window.aistudio exists before accessing its properties.
     if (typeof (window as any).aistudio?.hasSelectedApiKey === 'function') {
         setIsAistudioAvailable(true);
         try {
@@ -832,10 +788,8 @@ const App = () => {
 };
 
 const container = document.getElementById('root');
+// FIX: Ensure container is not null before creating a root.
 if (container) {
     const root = ReactDOM.createRoot(container);
     root.render(<App />);
 }
-    </script>
-  </body>
-</html>
