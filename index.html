@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GeeChat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/client": "https://aistudiocdn.com/react-dom@^19.2.0/client",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.26.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
+  </head>
+  <body class="bg-white dark:bg-gray-900">
+    <div id="root"></div>
+    <script type="text/babel" data-type="module">
+      import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+      import ReactDOM from 'react-dom/client';
+      import { GoogleGenAI, Chat } from "@google/genai";
+
+      // --- From types.ts ---
+      const MessageRole = {
+        USER: 'user',
+        MODEL: 'model',
+      };
+
+      // --- Icon Components ---
+      const SendIcon = (props) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+          <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
+        </svg>
+      );
+      const ModelIcon = () => (
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex-shrink-0 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+              </svg>
+          </div>
+      );
+      const UserIcon = () => (
+          <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 flex-shrink-0 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600 dark:text-gray-300" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+            </svg>
+          </div>
+      );
+      const SettingsIcon = (props) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+          <path fillRule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 5.85c-.09.55-.443.99-.98 1.135L5.85 7.21c-.917.25-1.567.933-1.567 1.85v.05c0 .62.32 1.2.859 1.52l2.245 1.213c.537.29.909.83.98 1.405l.25 2.023c.15.904.933 1.567 1.85 1.567h.05c.62 0 1.2-.32 1.52-.859l1.213-2.245c.29-.537.83-.909 1.405-.98l2.023-.25c.904-.15 1.567-.933 1.567-1.85v-.05c0-.62-.32-1.2-.859-1.52l-2.245-1.213a1.902 1.902 0 0 1-.98-1.405l-.25-2.023a1.902 1.902 0 0 0-1.567-1.85l-2.22-1.213A1.902 1.902 0 0 0 12.05 2.25h-.05a1.902 1.902 0 0 0-1.85 1.567L9.9 6.033a1.902 1.902 0 0 1-1.135.98l-2.22 1.213a1.902 1.902 0 0 0-1.52.859V12.05c0 .917.663 1.699 1.567 1.85l2.023.25c.55.07.99.443 1.135.98l1.213 2.22c.25.917.933 1.567 1.85 1.567h.05c.917 0 1.699-.663 1.85-1.567l.25-2.023a1.902 1.902 0 0 1 .98-1.135l2.245-1.213c.539-.32.859-.9.859-1.52v-.05c0-.917-.663-1.699-1.567-1.85l-2.023-.25a1.902 1.902 0 0 1-.98-1.135l-1.213-2.22a1.902 1.902 0 0 0-1.85-1.567h-.05Z" clipRule="evenodd" />
+        </svg>
+      );
+      const SunIcon = (props) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+          <path d="M12 2.25a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM18.894 6.106a.75.75 0 0 1 0 1.06l-1.591 1.59a.75.75 0 1 1-1.06-1.06l1.59-1.591a.75.75 0 0 1 1.06 0ZM21.75 12a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0v-2.25a.75.75 0 0 1 .75-.75ZM17.894 17.894a.75.75 0 0 1 1.06 0l1.59 1.591a.75.75 0 1 1-1.06 1.06l-1.591-1.59a.75.75 0 0 1 0-1.06ZM12 18a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0v-2.25A.75.75 0 0 1 12 18ZM7.758 17.894a.75.75 0 0 1 0-1.06l-1.59-1.591a.75.75 0 0 1-1.061 1.06l1.59 1.59a.75.75 0 0 1 1.06 0ZM6.106 7.166a.75.75 0 0 1 1.06 0l1.59 1.591a.75.75 0 1 1-1.06 1.06l-1.59-1.59a.75.75 0 0 1 0-1.06ZM3 12a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0v-2.25A.75.75 0 0 1 3 12Z" />
+        </svg>
+      );
+      const MoonIcon = (props) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" {...props}>
+          <path fillRule="evenodd" d="M9.528 1.718a.75.75 0 0 1 .162.819A8.97 8.97 0 0 0 9 6a9 9 0 0 0 9 9 8.97 8.97 0 0 0 3.463-.69.75.75 0 0 1 .981.981A10.503 10.503 0 0 1 18 19.5a10.5 10.5 0 0 1-10.5-10.5c0-1.562.337-3.05 1.002-4.425a.75.75 0 0 1 .819-.162Z" clipRule="evenodd" />
+        </svg>
+      );
+
+      // --- From services/geminiService.ts ---
+      async function verifyApiKey(apiKey) {
+        if (!apiKey) return false;
+        try {
+          const ai = new GoogleGenAI({ apiKey });
+          await ai.models.generateContent({
+              model: 'gemini-2.5-flash',
+              contents: 'hello',
+          });
+          return true;
+        } catch (e) {
+          console.error("API Key verification failed", e);
+          return false;
+        }
+      }
+
+      function createChatSession(apiKey) {
+        const ai = new GoogleGenAI({ apiKey });
+        const chat = ai.chats.create({
+          model: 'gemini-2.5-flash',
+          config: {
+            systemInstruction: `You are Gee’s Senior, Solution-Oriented Support Assistant AI. Your mission is to generate accurate, empathetic, and well-structured support analyses and communication drafts for Stripe users. You must always use a warm, human-like, professional tone and prevent dissatisfaction (DSAT) through Positive Scripting and Never Blaming. Response Formats: 1. EO (Email Outline): Full detailed response with comprehensive analysis 2. CL (Concise List): Simplified outline in a structured list format 3. INV (Internal Note): Detailed internal checklist with specific fields 4. QS (Quick Summary): Brief summary focused on key points 5. CF (Consult Form): Structured format for consulting specific departments Content Rules: - Use simple, clear English without unnecessary technical jargon - Apply appropriate empathy while maintaining professionalism - Never blame users or third parties for issues - Use positive scripting to avoid triggering negative emotions - Avoid mentioning PII (full names, phone numbers, emails) except first names - Include "Distressed User Analysis" in responses - Divide information into "Already know" and "Need to know" sections - Structure "To do" sections for clear next steps - Reference official Stripe documentation where applicable Formatting Guidelines: - Use bold for section titles - Organize content in paragraphs rather than bullets when possible - Maintain consistent spacing between sections - Links will be hyperlinked - Format emails with proper greetings and closings (using "Best, Gee") - Structure responses with clear demarcation between user-facing content and analysis Corrections Applied: - Remove specific sensitive information like bank account numbers - Adapt formatting based on the requested response type - Adjust empathy levels based on user situation - Ensure all links are publicly accessible - Verify information against Stripe documentation before including The specific format used is determined by the command provided (EO, CL, INV, QS, CF) and content is tailored to the user's specific situation while following these guidelines. EO (Email Outline) - Purpose: Full detailed email response with comprehensive analysis - Structure: - Case ID at the top - Summary section with brief issue description - Analysis section with multiple subsections: - Steps I took (detailed investigative actions) - Already know (what user knows from previous communications) - Need to know (what user should understand) - To do (next actions for user) - Information the reply must include (key points) - Outcome Summary (how response resolves issue) - DSAT analysis (risk assessment and mitigation) - Distressed User Analysis (user emotional state) - Create Complete email with proper greeting and closing ("Best, Gee") - Clear demarcation between email content and analysis CL (Concise List) - Purpose: Simplified outline in a structured list format - Structure: - "Have you checked all related cases?:" (YES/NO/NA) - "Have you read through the entire thread?:" (YES/NO/NA) - "Summary of the issue:" (Brief but comprehensive description) - "Steps I took:" (Numbered list of specific investigative actions) - "Relevant object IDs:" (List of account IDs, payment IDs, etc.) - "Final outcome:" (Brief explanation of resolution or next steps) - "Consult:" (Resolution path reference) - "Speculation:" (Analysis of root causes) - "Why is the case open/pending:" (Status explanation) - "What triggered the user's dissatisfaction and distress?:" (Context) - "Distressed User Analysis:" (Assessment of user's emotional state) - "Already know:" (What user already understands) - "Need to know:" (What user should become aware of) - "Relevant documents:" (Stripe public documentation links) INV (Internal Note) - Purpose: Detailed internal checklist with specific fields - Structure: - "Internal Note checklist" as header - "Consent to be recorded:" (YES/NO/NA) - "Authentication/Verification PIN/PII?:" (Method used or NA) - "User-Account Type" (Account type selection) - "User-Account ID" (acct_xxx or NA) - "Have you checked all related cases?" (YES/NO) - "Have you read through the entire thread?:" (YES/NO) - "List all user's concerns/inquiries" (Bulleted list) - "Topic:" (Category classification) - "Summary of the issue:" (Detailed overview) - "Steps I took:" (Numbered detailed actions) - "Check Lumos (RP used):" (Resolution Path name) - "Check Confluence:" (Link or NA) - "Specific Dashboard link:" (Public URL) - "Check Public Documentation:" (Links used) - "Final Outcome:" (Categorized as Escalation/Resolution/Ask for information/Waiting for internal team actions) - "Why is the case open/pending:" (Clear rationale) - "Distressed User Analysis:" (Assessment of user's emotional state) - "Information the reply must include:" (Key points) QS (Quick Summary) - Purpose: Brief summary focused on key points for quick understanding - Structure: - "Summary of the issue:" (Concise analysis of problem) - "Case link:" (Admin link if applicable) - "Case ID:" (ID if available) - "Account ID:" (Based on account in question) - "User-Account ID Platform:" (Platform ID or NA) - "User-Account ID Connected Account:" (Connected account ID or NA) - "Speculation:" (Analysis of possible resolution) - "What Can I tell the user?:" (Draft response that can be sent to user) - "Relevant Stripe resources:" (Links to docs, etc.) - "Relevant IDs:" (List of object IDs mentioned) CF (Consult Form) - Purpose: Structured format for consulting specific departments - Structure: - "Consult[Department]" (Chat/RAC) (Department = Platinum/ALO/US/RISK/SaaS) - "Ticket Link:" (Admin link if applicable) - "Object/Account ID(s):" (Relevant IDs) - "User issue Summary:" (Brief analysis, 2-3 sentences) - "Your Investigation:" (Brief analysis of investigation steps, 2-3 sentences) - "Speculation:" (Brief analysis of likely cause/resolution, 2-3 sentences) Common Guidelines Across All Formats - Use bold for section titles - Apply appropriate empathy throughout - Never blame anyone for issues - Use "NA" instead of "Not provided" for unavailable information - Include Distressed User Analysis - Never mention PII of users (except first names if needed) - Maintain professional yet human tone - Use simple English in paragraphs where possible - Make links clickable without parentheses - Only include publicly available links in user-facing content Tone Guidelines High Empathy Tone - Express authentic understanding of the user's situation - Acknowledge specific pain points and impact on their business - Use warm, supportive language showing genuine concern - Balance reassurance with honesty about limitations - Phrases like "I understand how concerning this is for your business" or "I appreciate how important this is to your operations" Positive Scripting Tone - Frame information constructively even when delivering limitations - Focus on what can be done rather than what cannot - Convert negative statements to neutral or positive alternatives - Avoid trigger words like "unfortunately" or "I can't" - Phrases like "Here's how we can address this" instead of "We can't fix this" Professional Yet Human Tone - Balance formal correctness with conversational warmth - Use first-person pronouns to create connection - Vary sentence structure to sound natural - Include occasional supportive phrases that show personality - Maintain appropriate business language while avoiding robotic phrasing Technical Support Tone - Clear, precise language about technical concepts - Step-by-step instructions with logical progression - Authoritative but accessible explanations - Balance between technical accuracy and understandability - Phrases like "Let me explain how this works" or "Here's what's happening behind the scenes" Structure Formats Problem-Solution Format - Acknowledge the issue clearly - Explain the cause concisely - Present the solution or next steps - End with reassurance or invitation for follow-up - Example: Problem acknowledgment → Cause explanation → Solution steps → Follow-up offer Step-by-Step Instructional Format - Begin with context for the instructions - Number steps sequentially - Keep each step focused on one action - Use clear action verbs to start steps - Conclude with what to expect after completing steps Analysis-Recommendation Format - Present thorough analysis of the situation - Identify key factors influencing the issue - Offer evidence-based recommendations - Provide rationale for suggestions - Structure: Situation assessment → Key factors → Recommendations with rationale Clarification Format - Acknowledge confusion or misunderstanding - Correct misconceptions directly but tactfully - Provide accurate information with references - Check understanding with follow-up questions - Structure: Acknowledge question → Clarify misconception → Provide correct information → Offer resources Escalation Format - Acknowledge limitations of current support level - Explain why escalation is necessary - Detail the escalation process transparently - Set expectations for next steps and timeline - Maintain reassurance throughout transition Combining Tone and Structure Different situations require different combinations of tone and structure: - For user distress: High Empathy Tone + Problem-Solution Format - For technical confusion: Technical Support Tone + Step-by-Step Format - For policy limitations: Positive Scripting Tone + Clarification Format - For complex issues: Professional Yet Human Tone + Analysis-Recommendation Format The most effective responses adjust both tone and structure based on: - User's emotional state - Complexity of the issue - Technical sophistication of the user - Business impact of the situation - Whether delivering good news or limitations - You are Gee’s Senior, Solution-Oriented Support Assistant AI. Your mission is to generate accurate, empathetic, and well-structured support analyses and communication drafts for Stripe users. You must always use a warm, human-like, professional tone and prevent dissatisfaction (DSAT) through Positive Scripting and Never Blaming. EO (Email Outline) Purpose: Full detailed email response with comprehensive analysis for complex or high-impact issues. Fields and Guidelines: SUMMARY: Brief 1-2 sentence description of the customer's issue and your intended resolution approach. Focus on key facts without unnecessary details. ANALYSIS - Steps I took: Numbered list (1-7 items) of specific investigative actions you performed, not conclusions. Example: "Reviewed payment intent details" not "Found payment failed." - Already know: What the customer understands based on their communications. Focus on their perspective, not what you discovered. - Need to know: New information the customer should understand to resolve their issue. Focus on educational aspects. - To do: Clear, actionable next steps for the customer, in order of priority. Should be specific enough for immediate action. - Outcome Summary: How your response helps resolve the customer's issue. Should connect your explanation to their business needs. - DSAT analysis: Identify risk factors for customer dissatisfaction and how your response mitigates them. Be honest about limitations. - Distressed User Analysis: Assessment of customer's emotional state and business impact of their issue. Show empathy without assumptions. - Information the reply must include: Bulleted list of critical elements your response must contain to fully address the issue. - Resources used: Publicly accessible links to relevant documentation (not internal resources). Email content: - Start with "Hi [Name]," or "Hi there," if name unknown - Use paragraphs instead of bullets whenever possible - Maintain warm, professional tone with appropriate empathy - Close with "Best, Gee" - Never blame the customer or third parties - Use positive language (avoid "unfortunately" or "can't") - Make links clickable without parentheses - Only include publicly available links in user-facing content - Format all response elements consistently - Address as User if they have a Stripe account - Address as End user if they do not Stripe Account or if they are a customer of the User - Do not mention any internal teams when escalating - Include dashboard links whenever applicable CL (Concise List) Purpose: Simplified outline in structured format for internal communication or quick reference. Fields and Guidelines: Have you checked all related cases?: Default to YES unless specified otherwise. Have you read through the entire thread?: Default to YES unless specified otherwise. Summary of the issue: Brief but comprehensive description in 2-3 sentences. Steps I took: Numbered list of specific investigative actions, typically 4-7 items, focusing on processes not conclusions. Consult: Resolution path reference when applicable. Relevant object IDs: List account IDs, payment IDs, etc. with descriptive labels. Final outcome: Clear statement of resolution status and next steps in 1-2 sentences. Include whether the case remains open or closed. Speculation: Brief analysis of likely root causes when not obvious. Why is the case open/pending: Clear explanation of what's needed to resolve the case. Distressed User Analysis: Deeper assessment of customer's emotional state and implications. What triggered the user's dissatisfaction and distress?: Context about the customer's emotional state and business impact. Relevant documents: Publicly accessible Stripe documentation links. INV (Internal Note) Purpose: Detailed internal checklist with specific fields for thorough case documentation. Fields and Guidelines: Internal Note checklist: Header Consent to be recorded: YES/NO/NA Authentication/Verification PIN/PII?: Specify method used or NA, never actual PII. User-Account Type: Select from: End User / Standard User (Direct Account) / Standard - Platform / Express - Platform / Custom - Platform / Standard - Connect / Express - Connect / Custom - Connect / No Account User-Account ID: Format as acct_xxx or "Not Applicable" Have you checked all related cases? YES/NO Have you read through the entire thread? YES/NO List all user's concerns/inquiries: Bulleted list of all issues mentioned. Topic: Categorized path like "Payments > Payments" or "Billing > Subscription" Summary of the issue: Detailed overview in 2-4 sentences. Steps I took: Numbered detailed actions taken, focusing on investigation process. Check Lumos (RP used): Resolution Path in format like "Payments::Declines::Declined Payment Troubleshoot" Check Confluence: Link if applicable or NA Specific Dashboard link: Public URL only, never admin links Check Public Documentation: Bulleted list of links used Final Outcome: Categorized as: Escalation / Resolution / Ask for information / Waiting for internal team actions, followed by brief description. Why is the case open/pending: Clear rationale for current status. Distressed User Analysis: Assessment of customer's emotional state and business impact. Information the reply must include: Key points that must be covered in response. QS (Quick Summary) Purpose: Brief executive summary focused on key points for quick understanding. Fields and Guidelines: Summary of the issue: Concise analysis of the problem in 1-3 sentences. Case link: Admin link if applicable, otherwise "NA" Case ID: ID if available, otherwise "NA" Account ID: Based on account in question or "NA" User-Account ID Platform: Platform ID or "NA" User-Account ID Connected Account: Connected account ID or "NA" Speculation: Brief analysis of possible resolution in 2-4 sentences. What Can I tell the user?: Draft response that can be directly sent to the customer. Relevant Stripe resources: Public documentation links. Relevant IDs: List of object IDs mentioned. CF (Consult Form) Purpose: Structured format for consulting specific departments. Fields and Guidelines: Consult[Department]: Department = Platinum/ALO/US/RISK/SaaS, followed by (Chat/RAC) Ticket Link: Admin link if applicable, otherwise "NA" Object/Account ID(s): Relevant IDs User issue Summary: Brief analysis in exactly 2-3 sentences. Your Investigation: Brief analysis of steps taken in exactly 2-3 sentences. Speculation: Brief analysis of likely cause/resolution in exactly 2-3 sentences. Special CF Guidelines: - Must use neutral statements without negative scripting - Avoid repeating the user's exact language - Keep all fields concise and factual - Focus on technical aspects rather than emotional elements Universal Guidelines Across All Formats - Use bold for section titles - Apply appropriate empathy throughout - Never blame anyone for issues - Use "NA" instead of "Not provided" for unavailable information - Include Distressed User Analysis in all formats - Never mention PII of users (except first names if needed) - Maintain professional yet human tone - Use simple English in paragraphs where possible - Make links clickable without parentheses - Only include publicly available links in user-facing content - Format all response elements consistently - Address as User if they have a Stripe account - Address as End user if they do not Stripe Account or if they are a customer of the User - Do not mention any internal teams when escalating - Do not mention PII (Name of User, Email, phone number) ⸻ Tone & Communication (Highest Priority) • Be genuinely empathetic, acknowledging user frustrations and showing willingness to assist. • Use simple English, no jargon or formal phrasing. • Positive scripting only — never say “unfortunately”, “can’t”, or imply fault. • Provide realistic assurance, not unverified promises. • Personalize every message using the user’s first name and context. • Do not proactively mention instant payouts unless relevant. ⸻ Formatting, PII, and Content Rules • Bold section titles (e.g., **Summary of the issue**). • For all form-based responses, each section must be a single line in the format "**Section Title:** Content". • You MUST add a double line space (a blank line) after each section. This is critical for readability and copy-pasting and overrides other paragraph rules. • No bullet points or numbers in user-facing email bodies; lists are allowed only in internal sections. • Use “NA” for missing info. • Include only clickable, public Stripe links. • Never mention internal teams, tools, or PII (names, phone, email). • Use “User” (Stripe account holder) or “End User” (non-account holder). Every response must contain an Analysis Section including: Summary of the issue, Speculation, Why case open/pending, User distress trigger, Relevant documents, and Relevant IDs. ⸻ EO (Email Outline) Format • Summary of the issue placed before the email. • Email Body: • Greeting: “Hi there,” or “Hi [Name],” • Paragraph form only (no bullets). • Warm, solution-focused tone. • Close with “Best, Gee.” • Steps I took: Numbered actions taken (not conclusions). • Already know / Need to know / To do: Clarify user’s knowledge, new info, and next steps. • Outcome Summary: Explain resolution or progress. • DSAT Analysis: Identify dissatisfaction risk + mitigation. • Information the reply must include: List required content. • Dashboard Links: Include accurate dashboard URLs when relevant. ⸻ 4. CL (Concise List) Format • Initial Check: Related cases read? → YES/NO/NA (default: YES). • Summary of the issue: 2–3 sentences, core context. • Steps I took: Numbered concise actions. • Relevant object IDs: Bulleted identifiers (accounts, payments, etc.). • Final outcome: 1–2 sentence resolution/next step. • Consult: Add after Final outcome → Consult(Platinum/ALO/US/RISK) (Chat/RAC). ⸻ 5. INV (Internal Note) Format • Consent to be recorded: YES/NO. • Verification Method: Indicate (e.g., PIN, PII confirmed). • User-Account Type: Express - Platform / Standard User. • User-Account ID: acct_xxx or NA. • Initial Check: Related cases + thread read → YES/NO. • List all user concerns. • Topic: Choose (Disputes, Payouts, Verification). • Summary of the issue: Detailed overview. • Steps I took: Include Lumos (RP), Confluence (if any), Dashboard (public link), and public docs. • Final Outcome: Escalation / Resolution / Waiting / Ask Info + summary. • Information the reply must include: List mandatory points. ⸻ 6. QS (Quick Summary) Format • Summary of the issue: Concise analysis. • Case link: Admin/Dashboard (if applicable). • Case ID / Account ID / Platform ID / Connected Account ID: Include or NA. • What Can I tell the user?: Copy-ready empathetic, factual message. ⸻ 7. Situational Guidelines • Self-service tasks: Guide users to self-serve; don’t perform it for them. • Authentication: Explain verification needs before accessing account data. • Call issues: Say “was not able to connect,” not “system issue.” • No website: Recommend social media for business verification first. • Case status: Keep open for monitoring if appropriate; note user preferences (e.g., callable). • Third-party contact: Include known contact details. • Revision codes: Use “IN” for contextual revisions; “NEW” for replacing prior context.
+
+EO (Email Outline)
+Case ID:
+Summary of the issue:
+----- EMAIL CONTENT BEGINS -----
+
+----- EMAIL CONTENT ENDS -----
+Analysis:
+Steps I took:
+Information in the reply must include:
+Already know:
+Need to know:
+What the user need to do:
+Outcome Summary:
+DSAT analysis:
+Will this case be a CSAT?:
+Is the user distressed?:
+
+
+QS (Quick Summary Format)
+Summary of the issue:
+Case link:
+Case ID:
+Account ID:
+User-Account ID: Platform:
+User-Account ID: Connected Account:
+Speculation:
+What can I tell the user?:
+Relevant Stripe resources:
+Relevant IDs:
+Will this case be a CSAT?:
+Is the user distressed?:
+
+
+CL (Concise List Format)
+Have you checked all related cases?: YES
+Have you read through the entire thread?: YES
+Summary of the issue:
+Steps I took:
+Relevant object IDs:
+Final outcome:
+Relevant documents:
+Will this case be a CSAT?:
+Is the user distressed?:
+
+
+CL (Concise List Format)
+Have you checked all related cases?: YES
+Have you read through the entire thread?: YES
+Summary of the issue:
+Steps I took:
+Relevant object IDs:
+Final outcome:
+Relevant documents:
+Will this case be a CSAT?:
+Is the user distressed?:
+
+
+INV (Internal Note)
+**Internal Note checklist** (this is the header)
+Consent to be recorded:
+Authentication/Verification PIN/PII?:
+User-Account Type:
+User-Account ID:
+Have you checked all related cases?
+Have you read through the entire thread?
+List all user's concerns/inquiries
+Topic:
+Summary of the issue:
+Steps I took:
+Check Lumos (RP used):
+Check Confluence:
+Specific Dashboard link:
+Check Public Documentation:
+Final Outcome:
+Why is the case open/pending:
+Will this case be a CSAT?:
+Is the user distressed?:
+
+
+CF (Consult Form)
+Consult[Department]: Department = Platinum/ALO/US/RISK/SaaS, followed by (Chat/RAC)
+Ticket Link:
+Object/Account ID(s):
+User issue Summary:
+Your Investigation:
+
+
+PC (Platinum Consult Format)
+SF Ticket Link:
+Account ID:
+Relevant object IDs:
+Summary of the Issue:
+Resources found and read:
+Speculation:`,
+          },
+        });
+        return chat;
+      }
+
+      // --- From components/ScreenSaver.tsx ---
+      const ScreenSaver = () => {
+        const [currentTime, setCurrentTime] = useState(new Date());
+
+        useEffect(() => {
+          const timerId = setInterval(() => {
+            setCurrentTime(new Date());
+          }, 1000);
+
+          return () => {
+            clearInterval(timerId);
+          };
+        }, []);
+
+        const timeString = currentTime.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true,
+        });
+
+        const dateString = currentTime.toLocaleDateString([], {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+
+        return (
+          <div className="flex flex-col items-center justify-center h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 cursor-pointer animate-fade-in">
+            <div className="text-7xl md:text-9xl font-sans font-bold tracking-tight">
+              {timeString}
+            </div>
+            <div className="text-xl md:text-3xl font-sans mt-4 text-gray-500 dark:text-gray-400">
+              {dateString}
+            </div>
+          </div>
+        );
+      };
+      
+      // --- From components/SettingsModal.tsx ---
+      const SettingsModal = ({ isOpen, onClose, onSaveKey, initialApiKey, theme, setTheme, isKeyRequired }) => {
+        const [apiKey, setApiKeyInput] = useState(initialApiKey || '');
+        const [isVerifying, setIsVerifying] = useState(false);
+        const [verificationStatus, setVerificationStatus] = useState('idle');
+
+        useEffect(() => {
+          setApiKeyInput(initialApiKey || '');
+        }, [initialApiKey, isOpen]);
+        
+        const handleSave = async () => {
+          setIsVerifying(true);
+          setVerificationStatus('idle');
+          const success = await onSaveKey(apiKey);
+          setVerificationStatus(success ? 'success' : 'error');
+          setIsVerifying(false);
+        };
+
+        const handleToggleTheme = () => {
+          setTheme(theme === 'light' ? 'dark' : 'light');
+        };
+
+        if (!isOpen) return null;
+
+        return (
+          <div 
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60" 
+              aria-labelledby="settings-title" 
+              role="dialog" 
+              aria-modal="true"
+          >
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 w-full max-w-md m-4 text-gray-900 dark:text-white transform transition-all">
+              <div className="flex justify-between items-center mb-4">
+                <h2 id="settings-title" className="text-2xl font-bold">Settings</h2>
+                {!isKeyRequired && (
+                  <button onClick={onClose} aria-label="Close settings" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="api-key" className="block font-semibold text-sm">Gemini API Key</label>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Your key is stored only in your browser.
+                </p>
+                <input
+                  id="api-key"
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="Enter your API key"
+                  className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  onClick={handleSave}
+                  disabled={isVerifying}
+                  className="w-full mt-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  {isVerifying ? (
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : "Save & Verify Key"}
+                </button>
+                {verificationStatus === 'success' && <p className="text-sm text-green-500 mt-2">API Key verified and saved successfully!</p>}
+                {verificationStatus === 'error' && <p className="text-sm text-red-500 mt-2">Invalid API Key. Please check and try again.</p>}
+              </div>
+
+              <hr className="my-6 border-gray-200 dark:border-gray-700" />
+
+              <div className="flex items-center justify-between">
+                  <span className="font-semibold text-sm">Interface Theme</span>
+                  <button onClick={handleToggleTheme} className="relative inline-flex items-center h-6 rounded-full w-11 transition-colors bg-gray-200 dark:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 focus:ring-indigo-500">
+                      <span className={`${theme === 'dark' ? 'translate-x-6' : 'translate-x-1'} inline-block w-4 h-4 transform bg-white rounded-full transition-transform`} />
+                       <span className={`absolute left-1.5 top-1 transition-opacity ${theme === 'light' ? 'opacity-100' : 'opacity-0'}`}><SunIcon className="w-4 h-4 text-yellow-500" /></span>
+                       <span className={`absolute right-1.5 top-1 transition-opacity ${theme === 'dark' ? 'opacity-100' : 'opacity-0'}`}><MoonIcon className="w-4 h-4 text-indigo-300" /></span>
+                  </button>
+              </div>
+
+            </div>
+          </div>
+        );
+      };
+
+      // --- From components/ChatMessage.tsx ---
+      const ChatMessageComponent = ({ message }) => {
+        const isModel = message.role === MessageRole.MODEL;
+        const renderedHtml = useMemo(() => {
+          if (isModel && window.marked) {
+            const rawMarkup = window.marked.parse(message.text);
+            return { __html: rawMarkup };
+          }
+          return null;
+        }, [message.text, isModel]);
+
+        return (
+          <div className={`flex items-start gap-4 my-4 ${isModel ? '' : 'flex-row-reverse'}`}>
+            {isModel ? <ModelIcon/> : <UserIcon/>}
+            <div className={`max-w-xl xl:max-w-3xl px-5 py-3 rounded-2xl shadow-md ${isModel ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-tl-none' : 'bg-indigo-600 text-white rounded-tr-none'}`}>
+                {isModel && renderedHtml ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={renderedHtml} />
+                ) : (
+                  <p className="whitespace-pre-wrap">{message.text}</p>
+                )}
+            </div>
+          </div>
+        );
+      };
+
+      // --- From components/ChatInput.tsx ---
+      const ChatInput = ({ onSendMessage, isLoading }) => {
+        const [input, setInput] = useState('');
+        const inputRef = useRef(null);
+        
+        const suggestionPrompts = [
+            { label: 'Email', value: 'EO: ' },
+            { label: 'Internal Note', value: 'INV: ' },
+            { label: 'Chat/RAC Note', value: 'CL: ' },
+            { label: 'Consult', value: 'CF: ' },
+            { label: 'Quick Summary', value: 'QS: ' },
+        ];
+        
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          if (input.trim() && !isLoading) {
+            onSendMessage(input.trim());
+            setInput('');
+          }
+        };
+
+        const handleSuggestionClick = (value) => {
+          setInput(value);
+          inputRef.current?.focus();
+        };
+
+        return (
+          <div className="bg-gray-100 dark:bg-gray-800 p-4 shadow-inner">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex flex-wrap items-center gap-2 mb-2 px-2">
+                  {suggestionPrompts.map((prompt) => (
+                      <button
+                      key={prompt.label}
+                      onClick={() => handleSuggestionClick(prompt.value)}
+                      disabled={isLoading}
+                      className="px-3 py-1 text-sm font-semibold text-indigo-700 bg-indigo-100 rounded-full hover:bg-indigo-200 dark:bg-indigo-900/50 dark:text-indigo-300 dark:hover:bg-indigo-900/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                      {prompt.label}
+                      </button>
+                  ))}
+              </div>
+              <form onSubmit={handleSubmit} className="flex items-center space-x-4">
+                  <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Type your message here, or select a format..."
+                  disabled={isLoading}
+                  className="flex-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-full py-3 px-6 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 transition duration-300 ring-1 ring-inset ring-gray-200 dark:ring-0"
+                  autoComplete="off"
+                  />
+                  <button
+                  type="submit"
+                  disabled={isLoading}
+                  aria-label="Send message"
+                  className="bg-indigo-600 text-white rounded-full p-3 hover:bg-indigo-500 disabled:bg-indigo-800 disabled:cursor-not-allowed transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-800 focus:ring-indigo-500"
+                  >
+                  <SendIcon className="w-6 h-6" />
+                  </button>
+              </form>
+            </div>
+          </div>
+        );
+      };
+
+      // --- From App.tsx ---
+      const App = () => {
+        const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini-api-key'));
+        const [isKeyValid, setIsKeyValid] = useState(false);
+        const [chatSession, setChatSession] = useState(null);
+        const [messages, setMessages] = useState([]);
+        const [isLoading, setIsLoading] = useState(false);
+        const [error, setError] = useState(null);
+        const chatEndRef = useRef(null);
+        
+        const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+        const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+        const [isIdle, setIsIdle] = useState(false);
+        const idleTimerRef = useRef(null);
+
+        const IDLE_TIMEOUT = 5000;
+
+        const resetIdleTimer = useCallback(() => {
+          if (idleTimerRef.current) {
+            clearTimeout(idleTimerRef.current);
+          }
+          idleTimerRef.current = window.setTimeout(() => {
+            setIsIdle(true);
+          }, IDLE_TIMEOUT);
+        }, []);
+
+        const handleUserActivity = useCallback(() => {
+          setIsIdle(false);
+          resetIdleTimer();
+        }, [resetIdleTimer]);
+
+        useEffect(() => {
+          if (isLoading) {
+            if (idleTimerRef.current) {
+              clearTimeout(idleTimerRef.current);
+            }
+            return;
+          }
+
+          resetIdleTimer();
+          window.addEventListener('mousemove', handleUserActivity);
+          window.addEventListener('keypress', handleUserActivity);
+          window.addEventListener('click', handleUserActivity);
+
+          return () => {
+            window.removeEventListener('mousemove', handleUserActivity);
+            window.removeEventListener('keypress', handleUserActivity);
+            window.removeEventListener('click', handleUserActivity);
+            if (idleTimerRef.current) {
+              clearTimeout(idleTimerRef.current);
+            }
+          };
+        }, [isLoading, handleUserActivity, resetIdleTimer]);
+        
+
+        useEffect(() => {
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+          localStorage.setItem('theme', theme);
+        }, [theme]);
+
+        const initializeChat = useCallback(async (key) => {
+          try {
+            const isValid = await verifyApiKey(key);
+            setIsKeyValid(isValid);
+            if (isValid) {
+              const session = createChatSession(key);
+              setChatSession(session);
+              setMessages([
+                { role: MessageRole.MODEL, text: "Hello! I'm Gee, your Senior, Solution-Oriented Support Assistant AI. How can I assist you today?" }
+              ]);
+              setError(null);
+            } else {
+              setChatSession(null);
+              setIsSettingsOpen(true);
+            }
+          } catch (e) {
+            setError(e instanceof Error ? e.message : "An unknown error occurred during initialization.");
+            setIsKeyValid(false);
+            setChatSession(null);
+          }
+        }, []);
+
+        useEffect(() => {
+          if (apiKey) {
+            initializeChat(apiKey);
+          } else {
+            setIsSettingsOpen(true);
+            setIsKeyValid(false);
+          }
+        }, []); 
+
+        useEffect(() => {
+          chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, [messages]);
+
+        const handleSaveApiKey = useCallback(async (newKey) => {
+          const isValid = await verifyApiKey(newKey);
+          if (isValid) {
+            setApiKey(newKey);
+            localStorage.setItem('gemini-api-key', newKey);
+            await initializeChat(newKey);
+            setIsSettingsOpen(false);
+          } else {
+            setIsKeyValid(false);
+          }
+          return isValid;
+        }, [initializeChat]);
+
+        const handleSendMessage = useCallback(async (messageText) => {
+          if (!chatSession || !isKeyValid) {
+              setError("Chat session is not initialized or API key is invalid.");
+              return;
+          }
+          
+          setIsLoading(true);
+          setError(null);
+
+          const userMessage = { role: MessageRole.USER, text: messageText };
+          setMessages(prev => [...prev, userMessage, { role: MessageRole.MODEL, text: '' }]);
+
+          try {
+            const stream = await chatSession.sendMessageStream({ message: messageText });
+            let accumulatedText = '';
+            for await (const chunk of stream) {
+              accumulatedText += chunk.text;
+              setMessages(prev => {
+                const newMessages = [...prev];
+                newMessages[newMessages.length - 1].text = accumulatedText;
+                return newMessages;
+              });
+            }
+          } catch (e) {
+            const errorMessage = e instanceof Error ? e.message : "An unknown error occurred.";
+            setError(`Error: ${errorMessage}`);
+            setMessages(prev => prev.slice(0, -1)); 
+          } finally {
+            setIsLoading(false);
+          }
+        }, [chatSession, isKeyValid]);
+
+        if (isIdle) {
+          return <ScreenSaver />;
+        }
+
+        return (
+          <>
+            <SettingsModal
+              isOpen={isSettingsOpen}
+              onClose={() => setIsSettingsOpen(false)}
+              onSaveKey={handleSaveApiKey}
+              initialApiKey={apiKey}
+              theme={theme}
+              setTheme={setTheme}
+              isKeyRequired={!isKeyValid}
+            />
+            <div className="flex flex-col h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-sans transition-colors duration-300">
+              <header className="bg-white dark:bg-gray-800 shadow-md p-4 z-10 flex items-center justify-between sticky top-0">
+                <div className="w-8"></div>
+                <h1 className="text-xl md:text-2xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-600">
+                  GeeChat
+                </h1>
+                <button 
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="text-gray-500 dark:text-gray-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+                  aria-label="Open settings"
+                >
+                  <SettingsIcon className="w-6 h-6"/>
+                </button>
+              </header>
+
+              <main className="flex-1 overflow-y-auto p-4 md:p-6">
+                <div className="max-w-4xl mx-auto">
+                  {!isKeyValid && (
+                    <div className="bg-yellow-500/20 text-yellow-400 p-4 rounded-lg my-4 text-center">
+                      Please set a valid Gemini API key in the settings to start chatting.
+                    </div>
+                  )}
+                  {messages.map((msg, index) => (
+                    <ChatMessageComponent key={index} message={msg} />
+                  ))}
+                  {isLoading && messages[messages.length - 1]?.role === MessageRole.MODEL && (
+                      <div className="flex items-start gap-4 my-4">
+                        <ModelIcon />
+                        <div className="max-w-xl xl:max-w-3xl px-5 py-3 rounded-2xl shadow-md bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-tl-none">
+                            <div className="flex items-center space-x-2">
+                              <div className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse delay-0"></div>
+                              <div className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse delay-200"></div>
+                              <div className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse delay-400"></div>
+                            </div>
+                        </div>
+                      </div>
+                  )}
+                  {error && (
+                    <div className="bg-red-500/20 text-red-300 p-3 rounded-lg max-w-4xl mx-auto my-4 text-center">
+                      {error}
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+              </main>
+
+              <footer className="sticky bottom-0 left-0 right-0">
+                <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading || !isKeyValid} />
+              </footer>
+            </div>
+          </>
+        );
+      };
+
+      // --- From index.tsx ---
+      const rootElement = document.getElementById('root');
+      if (!rootElement) {
+        throw new Error("Could not find root element to mount to");
+      }
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(
+        <React.StrictMode>
+          <App />
+        </React.StrictMode>
+      );
+    </script>
+  </body>
+</html>
